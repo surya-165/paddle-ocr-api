@@ -1,4 +1,4 @@
 flask
-paddlepaddle==2.6.2
 paddleocr
+paddlepaddle==3.0.0
 gunicorn
