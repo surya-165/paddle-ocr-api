@@ -1,0 +1,4 @@
+flask
+paddlepaddle==2.6.2
+paddleocr
+gunicorn
