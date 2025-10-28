@@ -18,7 +18,7 @@ def run_ocr():
     filepath = 'temp_image.jpg'
     file.save(filepath)
 
-    result = ocr.ocr(filepath, cls=True)
+    result = ocr.ocr(filepath)
     text_lines = [line[1][0] for line in result[0]]
 
     os.remove(filepath)
