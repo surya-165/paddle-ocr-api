@@ -1,56 +1,48 @@
 from flask import Flask, request, jsonify
-from paddleocr import PaddleOCR
-import os
+from PIL import Image
+import pytesseract
 import tempfile
+import os
 
 app = Flask(__name__)
 
-# ✅ Load OCR model once when the app starts
-# (this takes a few seconds on the first request only)
-ocr = PaddleOCR(lang='en')
-
 @app.route('/')
 def home():
-    return "✅ Paddle OCR API is running (optimized for Render Free Tier)"
+    return "✅ Tesseract OCR API running (optimized for Render Free Tier)"
 
 @app.route('/ocr', methods=['POST'])
-def run_ocr():
+def ocr_route():
     try:
-        # Check if a file was uploaded
+        # Ensure a file is uploaded
         if 'file' not in request.files:
             return jsonify({'error': 'No file uploaded'}), 400
 
-        file = request.files['file']
+        uploaded_file = request.files['file']
 
-        # Save uploaded image temporarily
+        # Save temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-            filepath = tmp.name
-            file.save(filepath)
+            temp_path = tmp.name
+            uploaded_file.save(temp_path)
 
-        # Perform OCR using the preloaded model
-        result = ocr.ocr(filepath)
+        # Run OCR using Tesseract
+        text = pytesseract.image_to_string(Image.open(temp_path))
 
-        # Extract text
-        extracted_text = []
-        for page in result:
-            for line in page:
-                text, confidence = line[1]
-                extracted_text.append(text)
+        # Clean up temp file
+        os.remove(temp_path)
 
-        # Delete temp file
-        os.remove(filepath)
+        # Convert text into clean list of lines
+        extracted_lines = [line.strip() for line in text.splitlines() if line.strip()]
 
         return jsonify({
             'success': True,
-            'lines_detected': len(extracted_text),
-            'extracted_text': extracted_text
+            'lines_detected': len(extracted_lines),
+            'extracted_text': extracted_lines
         })
 
     except Exception as e:
-        print(f"❌ Error during OCR: {e}")
+        print(f"❌ Error: {e}")
         return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
-    # Run on Render default port
     app.run(host='0.0.0.0', port=10000)
