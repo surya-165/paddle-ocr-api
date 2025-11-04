@@ -1,47 +1,51 @@
 from flask import Flask, request, jsonify
-from PIL import Image
-import pytesseract
+import easyocr
 import tempfile
 import os
 
 app = Flask(__name__)
 
+# Initialize EasyOCR reader once (to avoid reloading each time)
+reader = easyocr.Reader(['en'], gpu=False)
+
 @app.route('/')
 def home():
-    return "✅ Tesseract OCR API running (optimized for Render Free Tier)"
+    return jsonify({"message": "EasyOCR API is running!"})
 
 @app.route('/ocr', methods=['POST'])
-def ocr_route():
+def run_ocr():
     try:
-        # Ensure a file is uploaded
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file uploaded'}), 400
+        if 'image' not in request.files:
+            return jsonify({"error": "No image file uploaded"}), 400
 
-        uploaded_file = request.files['file']
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({"error": "Empty filename"}), 400
 
-        # Save temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-            temp_path = tmp.name
-            uploaded_file.save(temp_path)
+        # Save the file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+            file.save(temp_file.name)
+            temp_path = temp_file.name
 
-        # Run OCR using Tesseract
-        text = pytesseract.image_to_string(Image.open(temp_path))
+        # Run OCR
+        results = reader.readtext(temp_path)
 
-        # Clean up temp file
+        # Clean up
         os.remove(temp_path)
 
-        # Convert text into clean list of lines
-        extracted_lines = [line.strip() for line in text.splitlines() if line.strip()]
+        # Extract text only (ignore bounding boxes and confidence)
+        extracted_text = " ".join([res[1] for res in results])
 
         return jsonify({
-            'success': True,
-            'lines_detected': len(extracted_lines),
-            'extracted_text': extracted_lines
+            "text": extracted_text,
+            "details": [
+                {"bbox": res[0], "text": res[1], "confidence": res[2]}
+                for res in results
+            ]
         })
 
     except Exception as e:
-        print(f"❌ Error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
