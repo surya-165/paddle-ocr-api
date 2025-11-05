@@ -1,52 +1,34 @@
 from flask import Flask, request, jsonify
-import easyocr
+from PIL import Image
+import pytesseract
 import tempfile
 import os
 
 app = Flask(__name__)
 
-# Initialize EasyOCR reader once (to avoid reloading each time)
-reader = easyocr.Reader(['en'], gpu=False)
-
-@app.route('/')
-def home():
-    return jsonify({"message": "EasyOCR API is running!"})
-
-@app.route('/ocr', methods=['POST'])
-def run_ocr():
+@app.route("/ocr", methods=["POST"])
+def ocr_image():
     try:
-        if 'image' not in request.files:
-            return jsonify({"error": "No image file uploaded"}), 400
+        # Check if a file is provided
+        if "file" not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
 
-        file = request.files['image']
-        if file.filename == '':
-            return jsonify({"error": "Empty filename"}), 400
+        file = request.files["file"]
 
-        # Save the file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
-            file.save(temp_file.name)
-            temp_path = temp_file.name
+        # Save temporarily
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            file.save(tmp.name)
+            tmp_path = tmp.name
 
-        # Run OCR
-        results = reader.readtext(temp_path)
+        # Perform OCR
+        text = pytesseract.image_to_string(Image.open(tmp_path))
 
-        # Clean up
-        os.remove(temp_path)
+        os.remove(tmp_path)
 
-        # Extract text only (ignore bounding boxes and confidence)
-        extracted_text = " ".join([res[1] for res in results])
-
-        return jsonify({
-            "text": extracted_text,
-            "details": [
-                {"bbox": res[0], "text": res[1], "confidence": res[2]}
-                for res in results
-            ]
-        })
-
+        return jsonify({"text": text.strip()})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
